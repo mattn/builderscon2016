@@ -1,0 +1,701 @@
+OSS は Windows で動いてこそ楽しい
+<div style="text-align:right; font-size: 50%;">
+builderscon.io
+2016/12/03
+mattn
+</div>
+～ Go言語への誘い ～
+----
+自己紹介
+
+- 名前: mattn 「まっつん」
+- 特技: Windows Hacks/おっさんギャグ
+<div style="font-size: 50%">
+<font color="red">×</font>「まつーん」
+<font color="red">×</font>「まっとん」
+<font color="red">×</font>「まとぅーん」
+<div>
+----
+<img src="images/kaoriya.jpg" width=400 />
+<font color="red">×</font>「KaoriYa」
+----
+<img src="images/matz.jpg" width=300 />
+<font color="red">×</font>「Matz」
+----
+活動内容 「Vim」
+みんな大好き Vim！
+<div style="float: left; width: 40%; padding-left: 150px; font-size: 50%;">
+-バグ修正
+-ドキュメント翻訳
+-新機能開発(lambda,channel,job)
+-プラグイン作成
+-vim-jp.org
+-布教活動など</div>
+<div><img src="images/fuhahahahaha.png" style="width: 450px; margin-top: 20px" />
+</div>
+----
+Vim の本
+<img src="images/4774147958.09.LZZZZZZZ" /> <img src="images/4774166340.09.LZZZZZZZ" /> <img src="images/B01EA8FS6S.09.LZZZZZZZ" />
+----
+Vim の細道
+
+<img src="images/vim-no-hosomichi.png" />
+Software Design で絶賛連載中
+----
+活動内容 「Go言語」
+<div style="float:left"><img src="images/gopher.png"></div><div style="font-size: 70%; clear: all;">
+みんな大好きGo言語！
+Windows 上での動作を他の OS と
+同等にするパッチ作成、布教活動など
+業務でももちろんGo言語使ってます
+
+Go言語歴7年
+</div>
+----
+Go言語の本
+<img src="images/477418392X.09.LZZZZZZZ" />
+----
+お知らせ
+
+この後、こういった宣伝が
+50分ほど続きます。
+----
+
+
+*嘘です
+----
+活動内容 その他
+- mruby, streem
+- 自作言語 (cisp, 俺言語, anko など)
+- 他、多数
+GitHub リポジトリ数は fork を
+含めて1000超え
+----
+今日のお題
+
+
+ところでみなさん
+Windows で開発してますか？
+----
+Windows での開発
+
+-ターゲットが Linux だけど Windows
+-ターゲットが Android だけど Windows
+-ターゲットが Windows
+----
+Windows での開発
+
+-ターゲットが Linux だけど Windows
+-ターゲットが Android だけど Windows
+-<font color="red">ターゲットが Windows</font>
+----
+Windows は開発に向いているのか
+<div style="font-size: 70%">
+*IDE は沢山ある
+IntelliJ IDEA, Eclipse, Vim, Emacs,
+Visual Studio Code, Microsoft Visual Studio
+など
+</div>
+----
+でも Windows は問題が起きやすい
+
+他の OS に見ない API 群。特異なプロセス起動方法。特異なパスセパレータ。
+シフトJIS。他...
+----
+でも Windows は問題が起きやすい
+
+→他の OS と異なる点が多すぎる。
+----
+でも Windows は問題が起きやすい
+
+fork が無い。exec が無い。signal が無い。UNIX ドメインソケットが無い。
+
+→実現出来ない機能が多い
+----
+一応、回避方法はある
+
+<div style="font-size: 70%">
+UNIX ドメインソケット → TCP/IPソケット
+signal → Windows メッセージ
+fork → スレッドでなんちゃってfork
+</div>
+----
+
+
+*とにかくつらい
+----
+それ Cygwin で出来るよ
+----
+それ Cygwin で出来るよ
+それ Ubuntu on Windows で出来るよ
+----
+それ Cygwin で出来るよ
+それ Ubuntu on Windows で出来るよ
+<img src="images/logo_itai.png" width="200px" />
+*だが断る!
+----
+
+
+Windows のアプリケーションなら
+Windows ネイティブで動くべき
+(と思ってます)
+----
+問題が起きやすいなら辞めたら？
+
+動かないから動かしたくなるし、
+動かないと思っていた物が動くから楽しい
+<small>なにそれ変態</small>
+----
+
+
+Windows 移植は縛りプレイ
+----
+Windows ユーザへの迫害
+Windows パッチを pull-request すると即座に close されたり「Windows Sucks」の罵声を浴びる事もある
+<font color="green">～時代は繰り返されて来た～</font>
+----
+どんな事で問題が起きていたか(1)
+
+- プログラム引数 (マルチバイト問題)
+main 関数に渡された引数は ANSI エンコーディングなので UTF-8 への変換が必要
+<font color="red">→ #ifdef の森へ</font>
+----
+どんな事で問題が起きていたか(1)
+mruby.c
+>||
+for (i = 0; i < args.argc; i++) {
+  char* utf8 = mrb_utf8_from_locale(args.argv[i], -1);
+  if (utf8) {
+    mrb_ary_push(mrb, ARGV, mrb_str_new_cstr(mrb, utf8));
+    mrb_utf8_free(utf8);
+  }
+}
+||<
+mruby の内部エンコーディングは utf-8
+----
+どんな事で問題が起きていたか(1)
+>||
+#ifdef _WIN32
+char* mrb_utf8_from_locale(const char *p, size_t len);
+char* mrb_locale_from_utf8(const char *p, size_t len);
+#define mrb_locale_free(p) free(p)
+#define mrb_utf8_free(p) free(p)
+#else
+#define mrb_utf8_from_locale(p, l) (p)
+#define mrb_locale_from_utf8(p, l) (p)
+#define mrb_locale_free(p)
+#define mrb_utf8_free(p)
+#endif
+||<
+<div style="font-size: 0.5em">Windows 以外は何もしてない...</div>
+----
+どんな事で問題が起きていたか(1)
+
+
+Windows「僕だけが苦労すればいい」
+<font color="blue">でもこれが正しい</font>
+----
+どんな事で問題が起きていたか(2)
+
+- ソケットディスクリプタの違い
+Windows ではソケットはハンドルなのでそのまま read/write 出来ないし、そのそも recv/send じゃないと呼び出せない。
+----
+
+read/write できる
+ソケットディスクリプタを得るには
+変換が必要。epoll とかマジやめて
+
+でもやるしかない
+----
+どんな事で問題が起きていたか(2)
+streem の疑似 epoll
+>||
+while (timeout == -1 || GetTickCount() - ct <= timeout) {
+  int e = 0;
+  for (i = 0; i < FD_SETSIZE; i++) {
+    if (ee->fds[i] < 0) continue;
+    if (WSAEnumNetworkEvents((SOCKET) ee->fds[i], NULL, &wev) == 0) {
+      FD_ZERO(&fdset[0]);
+      FD_ZERO(&fdset[1]);
+      FD_ZERO(&fdset[2]);
+      if (ee->events & EPOLLIN) FD_SET(ee->fds[i], &fdset[0]);
+      if (ee->events & EPOLLOUT) FD_SET(ee->fds[i], &fdset[1]);
+      if (ee->events & EPOLLERR) FD_SET(ee->fds[i], &fdset[2]);
+||<
+----
+どんな事で問題が起きていたか(2)
+streem の疑似 epoll
+
+<font color="red">いい poll</font> が出来ました
+(epoll だけに)
+----
+そんな時に登場したのが Go言語
+
+Windows ユーザに優しく問題が起きにくい
+OS 間の差が少ない処理系
+----
+Go 言語とは
+- 内部エンコーディングは utf-8
+- ソケットも初期化しなくていい(WSA関数)
+- 洗練された標準パッケージ
+<div style="font-size: 70%">
+→ 文字化けや Windows 特有コードとおさらば
+</div>
+----
+
+Go言語はWindowsユーザに優しい
+<img src="images/go_love_windows.png"/>
+----
+defer は Windows に優しい
+>||
+os.Mkdir(tmpdir)
+defer os.RemoveAll(tmpdir) // ※1
+f, _ := os.Create(
+	filepath.Join(tmpdir, "foo.txt"))
+defer f.Close() // ※2
+||<
+<div style="font-size: 70%">
+※2 が実行されてから ※1 が実行される
+→ ハンドルを握ったままフォルダが削除されない
+</div>
+----
+filepath は Windows に優しい
+>||
+// OSのパスセパレータが使われる
+p = filepath.Join(part, "foo.txt")
+
+// Windowsだとドライブ名、UNIXだと空
+n = filepath.VolumeName(p)
+||<
+
+<div style="font-size: 80%">UNIX 側にも同じインタフェースが提供されている</div>
+----
+filepath は Windows に優しい
+>||
+// スラッシュセパレータへ
+p = filepath.ToSlash(p)
+
+// バックスラッシュセパレータへ
+p = filepath.FromSlash(p)
+||<
+<div style="font-size: 60%">
+UNIX では何も実行されないが、Windows だけ動作する。
+</div>
+----
+filepath は Windows に優しい
+<div style="font-size: 80%">
+おまじないとして入れておくだけで問題回避できる。
+エスケープ文字 `\` が処理されてしまう設定ファイルでは
+ToSlash を入れておけば問題になりにくい。
+</div>
+----
+マルチバイト問題が起きにくい
+<div style="font-size: 80%">
+Go 言語の Windows 版はワイド文字 API を使って内部処理されるので
+TOMB (Trail Of MultiByte) 問題が起きない。<div style="font-size: 70%">※ TOMB 問題: 「表」など cp932 で後続バイトに 「\」(0x5C)が登場する事で起きる色々な問題
+</div>
+</div>
+----
+net は Windows に優しい
+<div style="font-size: 70%">
+ソケットが Read/Write 出来る
+>||
+conn, _ := net.Dial("tcp", "localhost:5000")
+io.Copy(os.Stdout, bufio.NewReader(conn))
+||<
+
+Windows 特有のコードや #ifdef が必要ない。しかもソケットは I/O Completion Port で処理されるので完全非同期。
+epoll? ｱｰｱｰ 聞こえなーい
+</div>
+----
+ただ気を付けないと文字化けする
+
+>||
+C:\>dir | my-goapp
+||<
+<div style="font-size: 70%">
+dir コマンドは ANSI エンコーディング
+`[]byte` を `string` にしちゃうと化ける
+</div>
+----
+ただし気を付けないと文字化けする
+
+>||
+C:\>dir | nkf -Sw | my-goapp
+||<
+<div style="font-size: 70%">
+フィルタを挟むか自前で x/text/encoding でデコードする。
+ただし基本的にはGoアプリの周辺もutf-8で固めるべき。
+設定ファイル、入出力、その他
+</div>
+----
+つまり
+Go言語だと UNIX 向けのソースコードが Windows でもほぼ変更なしに動く
+
+Windows ユーザにとって明るい未来
+----
+だけど
+
+標準パッケージでは解決できない問題もある
+その一つが端末制御
+
+----
+
+
+でも mattn ウェアなら安心
+<img src="images/logo.png" style="width: 200px"/>
+----
+よくあるお悩み(1)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> 出力がパイプか端末か知りたい
+----
+よくあるお悩み(1)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> 出力がパイプか端末か知りたい
+
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-isatty
+</div>
+----
+よくあるお悩み(1)
+go-isatty を使って `os.Stdout` のチェック
+
+>||
+if isatty.IsTerminal(os.Stdout.Fd()) {
+    // 端末
+}
+||<
+UNIX と同じソースコード (デモ)
+----
+よくあるお悩み(2)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> エスケープシーケンスで色出したい
+----
+よくあるお悩み(2)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> エスケープシーケンスで色出したい
+
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-colorable
+</div>
+----
+よくあるお悩み(2)
+go-colorable を使って端末に色を出す
+>||
+out := colorable.NewColorableStdout()
+fmt.Fprint(out, "\x1b[41m赤\x1b[0m")
+||<
+
+UNIX と同じソースコード (デモ)
+----
+よくあるお悩み(3)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> ログをローテーションしたい
+----
+よくあるお悩み(3)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> ログをローテーションしたい
+
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-sizedwriter
+</div>
+----
+よくあるお悩み(3)
+ログファイルを移動できる。
+>||
+// 500バイト超えたら新しいファイル
+// filename をパーミッション 0644 で作る
+sw := sw.NewWriter(filename, 500, 0644, func(sw *sizedwriter.Writer) error {
+	// この関数が呼ばれている間はファイルが閉じられている
+	// sw.Filename を移動する
+})
+log.SetOutput(sw)
+for {
+	log.Println("こんにちわ世界")
+	time.Sleep(200 * time.Millisecond)
+}
+||<
+----
+よくあるお悩み(3)
+ログファイルを移動できる。
+
+便利だけど
+地味すぎる
+----
+よくあるお悩み(4)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> Access/MDB を扱いたい
+----
+よくあるお悩み(4)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> Access/MDB を扱いたい
+
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-adodb
+</div>
+----
+よくあるお悩み(4)
+Microsoft ADODB が扱えます
+>||
+db, err := sql.Open("adodb", "Provider=Microsoft.Jet.OLEDB.12.0;Data Source=foo.mdb;")
+if err != nil {
+	fmt.Println("open", err)
+	return
+}
+||<
+----
+よくあるお悩み(4)
+Go 1.8 new feature for database/sql
+<div style="padding-left: 50%; margin-left: -250px; font-size: 0.7em;">
+- go-sqlite3 (SQLite3)
+- go-oci8 (Oracle)
+- go-adodb (ADODB)
+</div><font color="red">Go1.8 Ready</font>
+----
+よくあるお悩み(5)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> sixel は？
+<div style="font-size: 70%">※VT2xx-VT3xx系に搭載されていた画像を表示する仕組み</div>
+----
+よくあるお悩み(5)
+<img src="images/monshin_roujin.png" style="width: 200px;  vertical-align: middle;"/> sixel は？
+<div style="font-size: 70%">※VT2xx-VT3xx系に搭載されていた画像を表示する仕組み</div>
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-sixel
+</div>
+----
+よくあるお悩み(5)
+最近では mintty が sixel 対応したので Windows でも sixel が楽しめます
+<div style="font-size: 70%">
+>||
+enc := sixel.NewEncoder(os.Stdout)
+enc.Encode(img)
+||<
+UNIX と同じソースコード (デモ)
+</div>
+----
+ちょっとまてよ
+<img src="images/doctor_isya_warui.png" style="width: 300px;  vertical-align: middle;"/>
+</div>
+----
+ちょっとまてよ
+<img src="images/doctor_isya_warui.png" style="width: 300px;  vertical-align: middle;"/>
+Motion JPEG を使うと動画も出せる?
+</div>
+----
+Motion JPEG を使うと動画も出せる?
+<img src="images/doctor_isya_warui.png" style="width: 300px;  vertical-align: middle;"/>
+<div style="float: left;"><img src="images/logor.png" style="width: 200px"/></div><div style="font-size: 70%; text-align: left;">
+https://github.com/mattn/go-mjpeg
+</div>
+----
+たとえば
+<div style="float:left; width:400px"><img src="images/mjpeg-flow.png" />
+</div><div style="font-size: 80%; clear: right; text-align: left;">
+gstreamer から mjpeg で
+エンコードして動画を配信し、
+Go言語で書いたプログラムから
+接続して Sixel でコンソールに
+エンコード。
+</div>
+----
+デモの前に
+
+
+苦労話
+----
+思いついた実装
+<div style="font-size: 60%"><pre>
+enc := sixel.NewEncoder(os.Stdout)
+for {
+	var img image.Image
+	err := dec.Decode(&img)
+	if err != nil {
+		break
+	}
+	enc.Encode(img)
+}
+</pre>まぁこうだよね
+</div>
+----
+思いついた実装
+<div style="font-size: 60%"><pre>
+enc := sixel.NewEncoder(os.Stdout)
+for {
+	var img image.Image
+	err := dec.Decode(&img)
+	if err != nil {
+		break
+	}
+	enc.Encode(img)
+}
+</pre>実際: sixel のレンダリングに比べ mjpeg エンコードの方が速すぎて
+通信バッファが溢れリアルタイム再生でなくなる。</div>
+----
+一番適した実装
+<div style="font-size: 38%"><pre>
+enc := sixel.NewEncoder(os.Stdout)
+q := make(chan image.Image, 2) // 2以上にすること
+go func() {
+	for {
+		var img image.Image
+		err := dec.Decode(&img)
+		if err != nil {
+			break
+		}
+		<font color="red">if len(q) == 0 {
+			q <- img
+		}</font>
+	}
+	close(q)
+}()
+
+for {
+	enc.Encode(<-q)
+}
+</pre></div>
+----
+一番適した実装
+<div style="font-size: 50%"><pre>
+...
+	for {
+		var img image.Image
+		err := dec.Decode(&img)
+		if err != nil {
+			break
+		}
+		<font color="red">if len(q) == 0 {
+			q <- img
+		}</font>
+		// 入らない物は捨てる
+	}
+...
+</pre></div>
+----
+一番適した実装
+<div style="font-size: 50%"><pre>
+...
+	for {
+		var img image.Image
+		err := dec.Decode(&img)
+		if err != nil {
+			break
+		}
+		<font color="red">if len(q) == 0 {
+			q <- img
+		}</font>
+		// 入らない物は捨てる
+	}
+...
+</pre></div>再生できない物は捨てる
+----
+SUMO
+<img src="images/okuridashi.png" width="500px" />
+(デモ)
+----
+やってくる未来
+
+Go言語を使えば誰でも安心して Windows で動くプログラムを作る事ができる
+
+<div style="float:right;"><img src="images/logo_low.png" width="200px" /></div><div style="float:right; font-size: 70%">→ mattn パッチが必要ない 
+→ 存在意義が問われる
+</div>
+----
+
+
+mattn の居場所が無くなる？
+----
+
+
+mattn の居場所が無くなる？
+そうだ。Vim をやろう。
+----
+
+
+Vim でも動画再生やれる？
+<small>無理ゲー</small>
+----
+
+
+Vim でも動画再生やれる？
+<small>無理ゲー</small>
+でもやる!
+----
+Vim プラグイン作った
+
+VimStreamer
+<small>Vim + gstreamer = vimstreamer</small>
+----
+具材
+- gstreamer
+- Go言語によるブリッジ
+- Vim8 (job/channel)
+- 気合い
+----
+原理
+<img src="images/xpm1.png" width=450 />
+Vim は XPM に色が付く
+----
+原理
+<img src="images/xpm2.png" width=450 />
+Vim は XPM に色が付く
+----
+原理
+<img src="images/xpm3.png" width=450 />
+Vim は XPM に色が付く
+----
+仕組み(サーバ)
+<div style="float:left;">
+<img src="images/vim-flow.png" />
+</div>
+<div style="font-size: 80%; float: flat;">動画を受信して減色しながら色コード(256色)を標準出力。`#00` から `#FF` でピクセル値を出力。
+</div>
+----
+仕組み(Vim側)
+<div style="float:left;">
+<img src="images/vim-flow.png" />
+</div>
+<div style="font-size: 80%; float: flat;">サーバの標準出力を Vim の job/channel で読み取り、
+区切り文字 `^L` で分割しながら
+1フレームを表示。
+</div>
+----
+データの並び
+<div style="font-size: 0.5em; background-color: #aaa;">#00#00#00#00#00#00#00#00#00
+#00#00#00<font color="green">#1F</font><font color="green">#1F</font>#00#00#00#00
+#00#00<font color="green">#1F</font><font color="red">#B4</font><font color="red">#B4</font><font color="green">#1F</font>#00#00#00
+#00<font color="green">#1F</font><font color="red">#B4</font><font color="red">#B4</font><font color="red">#B4</font><font color="red">#B4</font><font color="green">#1F</font>#00#00
+#00<font color="green">#1F</font><font color="red">#B4</font><font color="red">#B4</font><font color="red">#B4</font><font color="red">#B4</font><font color="green">#1F</font>#00#00
+...</div>Vim の syntax で色を付ける
+----
+あとはひたすら
+
+
+カリカリチューニング
+(デモ)
+----
+まとめ
+
+----
+まとめ
+
+
+Vim かっこいい
+----
+まとめ
+
+
+<font color="red"><del>Vim かっこいい</del></font>
+----
+まとめ
+
+Windows でも十分に開発は可能。
+Go言語を使えば殆どのソースを
+UNIXと共有できる。
+</div>
+----
+まとめ
+
+
+ぜひ Windows でコードを書いて下さい
+----
+まとめ
+
+
+mattn がバックアップします！
+----
+
+
+
+ご清聴ありがとうございました
